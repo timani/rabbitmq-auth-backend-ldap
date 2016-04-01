@@ -23,13 +23,13 @@
 -define(BOB_NAME, "Bob").
 -define(VHOST, "test").
 
--define(ALICE, #amqp_params_network{username     = << ?ALICE_NAME >>,
+-define(ALICE, #amqp_params_network{username     = <<?ALICE_NAME>>,
                                     password     = <<"password">>,
-                                    virtual_host = << ?VHOST >>}).
+                                    virtual_host = <<?VHOST>>}).
 
--define(BOB, #amqp_params_network{username     = << ?BOB_NAME >>,
+-define(BOB, #amqp_params_network{username       = <<?BOB_NAME>>,
                                     password     = <<"password">>,
-                                    virtual_host = << ?VHOST >>}).
+                                    virtual_host = <<?VHOST>>}).
 
 %%--------------------------------------------------------------------
 
@@ -51,16 +51,16 @@ ldap_and_internal_test_() ->
       fun () ->
           ok = application:set_env(rabbit, auth_backends,
               [{rabbit_auth_backend_ldap, rabbit_auth_backend_internal}]),
-          ok = control_action(add_user, [ ?ALICE_NAME, ""]),
-          ok = control_action(set_permissions, [ ?ALICE_NAME, "prefix-.*", "prefix-.*", "prefix-.*"]),
-          ok = control_action(set_user_tags, [ ?ALICE_NAME, "management", "foo"]),
-          ok = control_action(add_user, [ ?BOB_NAME, ""]),
-          ok = control_action(set_permissions, [ ?BOB_NAME, "", "", ""])
+          ok = control_action(add_user, [?ALICE_NAME, ""]),
+          ok = control_action(set_permissions, [?ALICE_NAME, "prefix-.*", "prefix-.*", "prefix-.*"]),
+          ok = control_action(set_user_tags, [?ALICE_NAME, "management", "foo"]),
+          ok = control_action(add_user, [?BOB_NAME, ""]),
+          ok = control_action(set_permissions, [?BOB_NAME, "", "", ""])
       end,
       fun (_) ->
           ok = application:unset_env(rabbit, auth_backends),
-          ok = control_action(delete_user, [ ?ALICE_NAME ]),
-          ok = control_action(delete_user, [ ?BOB_NAME ])
+          ok = control_action(delete_user, [?ALICE_NAME]),
+          ok = control_action(delete_user, [?BOB_NAME])
       end,
       [ {"LDAP&Internal Login", login()},
         {"LDAP&Internal Permissions", permission_match()},
@@ -72,16 +72,16 @@ internal_followed_ldap_and_internal_test_() ->
       fun () ->
           ok = application:set_env(rabbit, auth_backends,
               [rabbit_auth_backend_internal, {rabbit_auth_backend_ldap, rabbit_auth_backend_internal}]),
-          ok = control_action(add_user, [ ?ALICE_NAME, ""]),
-          ok = control_action(set_permissions, [ ?ALICE_NAME, "prefix-.*", "prefix-.*", "prefix-.*"]),
-          ok = control_action(set_user_tags, [ ?ALICE_NAME, "management", "foo"]),
-          ok = control_action(add_user, [ ?BOB_NAME, ""]),
-          ok = control_action(set_permissions, [ ?BOB_NAME, "", "", ""])
+          ok = control_action(add_user, [?ALICE_NAME, ""]),
+          ok = control_action(set_permissions, [?ALICE_NAME, "prefix-.*", "prefix-.*", "prefix-.*"]),
+          ok = control_action(set_user_tags, [?ALICE_NAME, "management", "foo"]),
+          ok = control_action(add_user, [?BOB_NAME, ""]),
+          ok = control_action(set_permissions, [?BOB_NAME, "", "", ""])
       end,
       fun (_) ->
           ok = application:unset_env(rabbit, auth_backends),
-          ok = control_action(delete_user, [ ?ALICE_NAME ]),
-          ok = control_action(delete_user, [ ?BOB_NAME ])
+          ok = control_action(delete_user, [?ALICE_NAME]),
+          ok = control_action(delete_user, [?BOB_NAME])
       end,
       [ {"Internal, LDAP&Internal Login", login()},
         {"Internal, LDAP&Internal Permissions", permission_match()},
@@ -102,10 +102,12 @@ logins() -> [logins_direct() | logins_network()].
 
 logins_network() ->
     [{bad, #amqp_params_network{}},
-     {bad, #amqp_params_network{username = << ?ALICE_NAME >>}},
-     {bad, #amqp_params_network{username = << ?ALICE_NAME >>,
-                                password = <<"password">>}},
-     {bad, missing_credentials_for_authentication()},
+     {bad, #amqp_params_network{username     = <<?ALICE_NAME>>}},
+     {bad, #amqp_params_network{username     = <<?ALICE_NAME>>,
+                                password     = <<"password">>}},
+     {bad, #amqp_params_network{username     = <<"Alice">>,
+                                password     = <<"Alicja">>,
+                                virtual_host = <<?VHOST>>}},
      {good, ?ALICE},
      {good, ?BOB}].
 
@@ -117,11 +119,6 @@ logins_direct() ->
      {good, #amqp_params_direct{username     = <<?ALICE_NAME>>,
                                 password     = <<"password">>,
                                 virtual_host = <<?VHOST>>}}].
-
-missing_credentials_for_authentication() ->
-    #amqp_params_network{username     = <<"Alice">>,
-                         password     = <<"Alicja">>,
-                         virtual_host = << ?VHOST >>}.
 
 %% Control tags; 'network', 'direct' and 'dual' determine whether the env
 %% variables are set for network, direct, or both login types, respectively.
@@ -218,14 +215,14 @@ permission_match() ->
                  #'queue.declare'{queue = <<"prefix-test">>},
                  #'queue.bind'{exchange = N, queue = <<"prefix-test">>}]
         end,
-    test_resource_funs([{?ALICE, B(<<"prefix-abc123">>),              ok},
-                        {?ALICE, B(<<"abc123">>),                     fail},
+    test_resource_funs([{?ALICE, B(<<"prefix-abc123">>),    ok},
+                        {?ALICE, B(<<"abc123">>),           fail},
                         {?ALICE, B(<<"xch-Alice-abc123">>), fail}]).
 
 tag_check(Tags) ->
     fun() ->
             {ok, User} = rabbit_access_control:check_user_pass_login(
-                        << ?ALICE_NAME >>, <<"password">>),
+                           <<?ALICE_NAME>>, <<"password">>),
             ?assertEqual(Tags, User#user.tags)
     end.
 
