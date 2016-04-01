@@ -101,13 +101,23 @@ login() ->
 logins() -> [logins_direct() | logins_network()].
 
 logins_network() ->
-    [{bad, #amqp_params_network{}},
+    [%% In the first three cases the record fields default to
+     %% credentials (along with a virtual host) which are absent from
+     %% the LDAP server, and indeed Rabbit's internal database, when
+     %% testing.
+     {bad, #amqp_params_network{}},
      {bad, #amqp_params_network{username     = <<?ALICE_NAME>>}},
      {bad, #amqp_params_network{username     = <<?ALICE_NAME>>,
                                 password     = <<"password">>}},
+     %% The middle case tests that clients which can not authenitcate
+     %% certainly can not get authorised regardless of permissions:
+     %% credentials are wrong (just the password) but they are allowed
+     %% on the given virtual host.
      {bad, #amqp_params_network{username     = <<"Alice">>,
-                                password     = <<"Alicja">>,
+                                password     = <<"wrong">>,
                                 virtual_host = <<?VHOST>>}},
+     %% The last two cases test that clients with good credentials and
+     %% permissions are authenicated and authorised.
      {good, ?ALICE},
      {good, ?BOB}].
 
