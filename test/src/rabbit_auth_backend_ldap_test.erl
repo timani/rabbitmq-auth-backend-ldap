@@ -92,13 +92,15 @@ internal_followed_ldap_and_internal_test_() ->
 %%--------------------------------------------------------------------
 
 login() ->
-    [test_login(Env, L, case {LGood, EnvGood} of
-                            {good, good} -> fun succ/1;
-                            _            -> fun fail/1
-                        end) || {LGood, L}     <- logins(),
-                                {EnvGood, Env} <- login_envs()].
+    [test_login(Env, L, Type, case {LGood, EnvGood} of
+                                  {good, good} -> fun succ/1;
+                                  _            -> fun fail/1
+                              end) || {LGood, L}           <- logins(),
+                                      {EnvGood, Type, Env} <- login_envs()].
 
-logins() ->
+logins() -> [logins_direct() | logins_network()].
+
+logins_network() ->
     [{bad, #amqp_params_network{}},
      {bad, #amqp_params_network{username = << ?ALICE_NAME >>}},
      {bad, #amqp_params_network{username = << ?ALICE_NAME >>,
@@ -107,17 +109,29 @@ logins() ->
      {good, ?ALICE},
      {good, ?BOB}].
 
+logins_direct() ->
+    [{bad, #amqp_params_direct{}},
+     {bad, #amqp_params_direct{username      = <<?ALICE_NAME>>}},
+     {bad, #amqp_params_direct{username      = <<?ALICE_NAME>>,
+                               password      = <<"password">>}},
+     {good, #amqp_params_direct{username     = <<?ALICE_NAME>>,
+                                password     = <<"password">>,
+                                virtual_host = <<?VHOST>>}}].
+
 missing_credentials_for_authentication() ->
     #amqp_params_network{username     = <<"Alice">>,
                          password     = <<"Alicja">>,
                          virtual_host = << ?VHOST >>}.
 
+%% Control tags; 'network', 'direct' and 'dual' determine whether the env
+%% variables are set for network, direct, or both login types, respectively.
 login_envs() ->
-    [{good, base_login_env()},
-     {good, dn_lookup_pre_bind_env()},
-     {good, other_bind_admin_env()},
-     {good, other_bind_anon_env()},
-     {bad, other_bind_broken_env()}].
+    [{good, dual,   base_login_env()},
+     {good, dual,   dn_lookup_pre_bind_env()},
+     {good, dual,   other_bind_admin_env()},
+     {good, dual,   other_bind_anon_env()},
+     {bad,  dual,   other_bind_broken_env()},
+     {good, direct, tag_queries_subst_env()}].
 
 base_login_env() ->
     [{user_dn_pattern,    "cn=${username},ou=People,dc=example,dc=com"},
@@ -142,13 +156,23 @@ other_bind_anon_env() ->
 other_bind_broken_env() ->
     [{other_bind, {"cn=admin,dc=example,dc=com", "admi"}}].
 
-test_login(Env, Login, ResultFun) ->
+tag_queries_subst_env() ->
+    [{tag_queries, [{administrator, {constant, false}},
+                    {management,
+                     {exists, "ou=${vhost},ou=vhosts,dc=example,dc=com"}}]}].
+
+test_login(Env, Login, Type, ResultFun) ->
     ?_test(try
-               set_env(Env),
+               set_env(Login, Type, Env),
                ResultFun(Login)
            after
                set_env(base_login_env())
            end).
+
+set_env(#amqp_params_network{}, network, Env) -> set_env(Env);
+set_env(#amqp_params_direct{}, direct, Env)   -> set_env(Env);
+set_env(_, dual, Env)                         -> set_env(Env);
+set_env(_, _, _)                              -> void.
 
 set_env(Env) ->
     [application:set_env(rabbitmq_auth_backend_ldap, K, V) || {K, V} <- Env].
